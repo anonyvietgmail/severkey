@@ -1,0 +1,16 @@
+name = "gmail-checker-license"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# Bind KV namespace for storing license keys and update manifests
+# Create KV: npx wrangler kv:namespace create LICENSE_KV
+# Then update the id below:
+[[kv_namespaces]]
+binding = "LICENSE_KV"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[vars]
+ADMIN_SECRET = "MySuperSecretAdminPass123!"
+
+# To set RSA Private Key:
+# npx wrangler secret put RSA_PRIVATE_KEY < ../keys/rsa_private_key.pem
