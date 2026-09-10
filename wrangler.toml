@@ -11,7 +11,6 @@ compatibility_date = "2024-09-01"
 #    - Add Secret: RSA_PRIVATE_KEY (content of rsa_private_key.pem)
 #    - Add Variable: ADMIN_SECRET (your password)
 #
-# If you prefer to specify the KV ID in this file instead, uncomment below with your real ID:
-# [[kv_namespaces]]
-# binding = "LICENSE_KV"
-# id = "PASTE_YOUR_32_HEX_CHAR_KV_ID_HERE"
+[[kv_namespaces]]
+binding = "LICENSE_KV"
+id = "59d51953ded74383a723d0aa6adc2b4c"
