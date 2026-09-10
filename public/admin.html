@@ -243,12 +243,15 @@
             </div>
           </div>
         </div>
-        <button class="btn btn-primary" id="btn-connect">Connect & Load Keys</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" id="btn-connect">Connect & Load Keys</button>
+          <button class="btn btn-secondary" id="btn-logout" style="display: none;">Logout</button>
+        </div>
       </div>
     </div>
 
     <!-- Main Working Dashboard (Hidden until connected) -->
-    <div id="main-dashboard" style="display: none; display: flex; flex-direction: column; gap: 20px;">
+    <div id="main-dashboard" style="display: none; flex-direction: column; gap: 20px;">
       <!-- Generate Key Form -->
       <div class="card">
         <div class="card-header">
@@ -343,6 +346,7 @@
     const apiUrlInput = document.getElementById('api-url');
     const adminSecretInput = document.getElementById('admin-secret');
     const btnConnect = document.getElementById('btn-connect');
+    const btnLogout = document.getElementById('btn-logout');
     const btnToggleSecret = document.getElementById('btn-toggle-secret');
     const authBadge = document.getElementById('auth-status-badge');
     const mainDashboard = document.getElementById('main-dashboard');
@@ -356,17 +360,32 @@
     }
 
     function getAdminSecret() {
-      const val = adminSecretInput.value.trim() || localStorage.getItem('cf_admin_secret') || 'Thuat123@@';
-      localStorage.setItem('cf_admin_secret', val);
+      const val = adminSecretInput.value.trim() || localStorage.getItem('cf_admin_secret') || '';
       return val;
     }
 
     apiUrlInput.value = getApiUrl();
-    adminSecretInput.value = getAdminSecret();
+    const savedSecret = localStorage.getItem('cf_admin_secret') || '';
+    if (savedSecret) {
+      adminSecretInput.value = savedSecret;
+      loadKeys();
+    }
 
     if (btnToggleSecret) {
       btnToggleSecret.addEventListener('click', () => {
         adminSecretInput.type = adminSecretInput.type === 'password' ? 'text' : 'password';
+      });
+    }
+
+    if (btnLogout) {
+      btnLogout.addEventListener('click', () => {
+        localStorage.removeItem('cf_admin_secret');
+        adminSecretInput.value = '';
+        authBadge.className = 'badge badge-unused';
+        authBadge.textContent = 'Not Connected';
+        mainDashboard.style.display = 'none';
+        btnLogout.style.display = 'none';
+        showToast('Logged out.');
       });
     }
 
@@ -380,6 +399,11 @@
     async function loadKeys() {
       const url = getApiUrl();
       const secret = getAdminSecret();
+      if (!secret) {
+        showToast('Please enter your Admin Secret Password.');
+        return;
+      }
+
       try {
         const res = await fetch(`${url}/api/admin/keys`, {
           headers: { 'Authorization': `Bearer ${secret}` }
@@ -389,14 +413,19 @@
           throw new Error(data.message || 'Authentication failed');
         }
 
+        // Save valid secret in user's browser only
+        localStorage.setItem('cf_admin_secret', secret);
         authBadge.className = 'badge badge-active';
         authBadge.textContent = 'Connected';
         mainDashboard.style.display = 'flex';
+        if (btnLogout) btnLogout.style.display = 'inline-block';
 
         renderKeys(data.keys || []);
       } catch (e) {
         authBadge.className = 'badge badge-expired';
         authBadge.textContent = 'Auth Failed';
+        mainDashboard.style.display = 'none';
+        if (btnLogout) btnLogout.style.display = 'none';
         showToast('Auth error: ' + e.message);
       }
     }
@@ -558,9 +587,6 @@
         }
       } catch (e) { alert(e.message); }
     });
-
-    // Auto load keys on page visit
-    loadKeys();
   </script>
 </body>
 </html>
