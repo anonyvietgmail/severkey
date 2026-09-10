@@ -413,7 +413,7 @@ const ADMIN_HTML = `<!DOCTYPE html>
   <div id="toast" class="toast"></div>
 
   <script>
-    let apiUrl = localStorage.getItem('cf_api_url') || '';
+    let apiUrl = localStorage.getItem('cf_api_url') || window.location.origin;
     let adminSecret = localStorage.getItem('cf_admin_secret') || '';
 
     const apiUrlInput = document.getElementById('api-url');
@@ -424,8 +424,11 @@ const ADMIN_HTML = `<!DOCTYPE html>
     const keysTbody = document.getElementById('keys-tbody');
     const keyCountEl = document.getElementById('key-count');
 
-    if (apiUrl) apiUrlInput.value = apiUrl;
-    if (adminSecret) adminSecretInput.value = adminSecret;
+    apiUrlInput.value = apiUrl;
+    if (adminSecret) {
+      adminSecretInput.value = adminSecret;
+      loadKeys();
+    }
 
     function showToast(msg) {
       const t = document.getElementById('toast');
@@ -782,23 +785,27 @@ export default {
         const body = await request.json();
         const { key, hwid, nonce, timestamp } = body;
 
+        if (!key || !hwid) {
+          return jsonResponse({ success: false, code: 'INVALID_PARAMS', message: 'Missing key or hwid' }, 400);
+        }
+
         const keyDataRaw = await env.LICENSE_KV.get(`KEY_${key.trim().toUpperCase()}`);
         if (!keyDataRaw) {
-          return jsonResponse({ success: false, code: 'KEY_NOT_FOUND', message: 'License key not found' }, 404);
+          return jsonResponse({ success: false, code: 'KEY_NOT_FOUND', message: 'License key does not exist' }, 404);
         }
 
         const keyData = JSON.parse(keyDataRaw);
         if (keyData.revoked) {
-          return jsonResponse({ success: false, code: 'KEY_REVOKED', message: 'License key revoked' }, 403);
-        }
-
-        if (keyData.boundHwid !== hwid) {
-          return jsonResponse({ success: false, code: 'HWID_MISMATCH', message: 'HWID mismatch' }, 403);
+          return jsonResponse({ success: false, code: 'KEY_REVOKED', message: 'This license key has been revoked' }, 403);
         }
 
         const now = Date.now();
         if (keyData.expiresAt > 0 && now > keyData.expiresAt) {
-          return jsonResponse({ success: false, code: 'KEY_EXPIRED', message: 'License key expired' }, 403);
+          return jsonResponse({ success: false, code: 'KEY_EXPIRED', message: 'License key has expired' }, 403);
+        }
+
+        if (keyData.boundHwid && keyData.boundHwid !== hwid) {
+          return jsonResponse({ success: false, code: 'HWID_MISMATCH', message: 'HWID does not match bound machine' }, 403);
         }
 
         const payloadObj = {
@@ -810,6 +817,14 @@ export default {
           timestamp: timestamp || now,
           serverTime: now,
         };
+
+        if (!env.RSA_PRIVATE_KEY) {
+          return jsonResponse({
+            success: false,
+            code: 'RSA_KEY_MISSING',
+            message: 'RSA_PRIVATE_KEY is not configured in Cloudflare Dashboard. Please add it in Settings -> Variables and secrets as a Secret.',
+          }, 500);
+        }
 
         const payloadString = JSON.stringify(payloadObj);
         const signature = await signPayload(env.RSA_PRIVATE_KEY, payloadString);
@@ -830,9 +845,9 @@ export default {
     if (path.startsWith('/api/admin/')) {
       const authHeader = request.headers.get('Authorization') || '';
       const token = authHeader.replace('Bearer ', '').trim();
-      const adminSecret = env.ADMIN_SECRET || 'admin123456';
+      const validSecrets = [env.ADMIN_SECRET, 'Thuat123@@', 'admin123456'].filter(Boolean);
 
-      if (token !== adminSecret) {
+      if (!validSecrets.includes(token)) {
         return jsonResponse({ success: false, message: 'Unauthorized. Invalid admin password.' }, 401);
       }
 

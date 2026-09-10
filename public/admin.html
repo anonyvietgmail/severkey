@@ -337,7 +337,7 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    let apiUrl = localStorage.getItem('cf_api_url') || '';
+    let apiUrl = localStorage.getItem('cf_api_url') || window.location.origin;
     let adminSecret = localStorage.getItem('cf_admin_secret') || '';
 
     const apiUrlInput = document.getElementById('api-url');
@@ -348,8 +348,11 @@
     const keysTbody = document.getElementById('keys-tbody');
     const keyCountEl = document.getElementById('key-count');
 
-    if (apiUrl) apiUrlInput.value = apiUrl;
-    if (adminSecret) adminSecretInput.value = adminSecret;
+    apiUrlInput.value = apiUrl;
+    if (adminSecret) {
+      adminSecretInput.value = adminSecret;
+      loadKeys();
+    }
 
     function showToast(msg) {
       const t = document.getElementById('toast');
