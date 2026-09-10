@@ -88,6 +88,23 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Check KV binding for all /api/ routes
+    if (path.startsWith('/api/')) {
+      if (!env.LICENSE_KV) {
+        return jsonResponse({
+          success: false,
+          code: 'KV_NOT_BOUND',
+          message: 'Cloudflare KV namespace "LICENSE_KV" is not bound. In Cloudflare Dashboard, go to Workers & Pages -> severkey -> Settings -> Bindings -> Add KV Namespace -> Name: LICENSE_KV.',
+        }, 500);
+      }
+    }
+
+    // Static assets fallback (Cloudflare Pages / Workers Assets)
+    if (env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+      const assetRes = await env.ASSETS.fetch(request);
+      if (assetRes.status < 400) return assetRes;
+    }
+
     // -------------------------------------------------------------
     // CLIENT API: Check Remote Update Manifest
     // -------------------------------------------------------------

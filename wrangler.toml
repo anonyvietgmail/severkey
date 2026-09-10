@@ -1,16 +1,17 @@
-name = "gmail-checker-license"
+name = "severkey"
 main = "worker.js"
 compatibility_date = "2024-09-01"
 
-# Bind KV namespace for storing license keys and update manifests
-# Create KV: npx wrangler kv:namespace create LICENSE_KV
-# Then update the id below:
-[[kv_namespaces]]
-binding = "LICENSE_KV"
-id = "YOUR_KV_NAMESPACE_ID"
-
-[vars]
-ADMIN_SECRET = "MySuperSecretAdminPass123!"
-
-# To set RSA Private Key:
-# npx wrangler secret put RSA_PRIVATE_KEY < ../keys/rsa_private_key.pem
+# NOTE: Configure Bindings in Cloudflare Dashboard:
+# 1. Storage -> KV -> Create namespace: LICENSE_KV
+# 2. Workers & Pages -> severkey -> Settings -> Bindings -> Add KV namespace:
+#    - Variable name: LICENSE_KV
+#    - Select your namespace
+# 3. Settings -> Variables and Secrets:
+#    - Add Secret: RSA_PRIVATE_KEY (content of rsa_private_key.pem)
+#    - Add Variable: ADMIN_SECRET (your password)
+#
+# If you prefer to specify the KV ID in this file instead, uncomment below with your real ID:
+# [[kv_namespaces]]
+# binding = "LICENSE_KV"
+# id = "PASTE_YOUR_32_HEX_CHAR_KV_ID_HERE"
