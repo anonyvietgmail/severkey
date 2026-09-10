@@ -313,7 +313,10 @@ const ADMIN_HTML = `<!DOCTYPE html>
           </div>
           <div class="form-group">
             <label>Admin Secret Password</label>
-            <input type="password" id="admin-secret" placeholder="Enter your ADMIN_SECRET">
+            <div style="display: flex; gap: 8px;">
+              <input type="password" id="admin-secret" placeholder="Enter your ADMIN_SECRET" style="flex: 1;">
+              <button type="button" id="btn-toggle-secret" class="btn btn-secondary" style="padding: 0 12px; font-size: 13px;" title="Show / Hide Password">👁</button>
+            </div>
           </div>
         </div>
         <button class="btn btn-primary" id="btn-connect">Connect & Load Keys</button>
@@ -413,21 +416,34 @@ const ADMIN_HTML = `<!DOCTYPE html>
   <div id="toast" class="toast"></div>
 
   <script>
-    let apiUrl = localStorage.getItem('cf_api_url') || window.location.origin;
-    let adminSecret = localStorage.getItem('cf_admin_secret') || '';
-
     const apiUrlInput = document.getElementById('api-url');
     const adminSecretInput = document.getElementById('admin-secret');
     const btnConnect = document.getElementById('btn-connect');
+    const btnToggleSecret = document.getElementById('btn-toggle-secret');
     const authBadge = document.getElementById('auth-status-badge');
     const mainDashboard = document.getElementById('main-dashboard');
     const keysTbody = document.getElementById('keys-tbody');
     const keyCountEl = document.getElementById('key-count');
 
-    apiUrlInput.value = apiUrl;
-    if (adminSecret) {
-      adminSecretInput.value = adminSecret;
-      loadKeys();
+    function getApiUrl() {
+      const val = (apiUrlInput.value.trim() || localStorage.getItem('cf_api_url') || window.location.origin).replace(/\/$/, '');
+      localStorage.setItem('cf_api_url', val);
+      return val;
+    }
+
+    function getAdminSecret() {
+      const val = adminSecretInput.value.trim() || localStorage.getItem('cf_admin_secret') || 'Thuat123@@';
+      localStorage.setItem('cf_admin_secret', val);
+      return val;
+    }
+
+    apiUrlInput.value = getApiUrl();
+    adminSecretInput.value = getAdminSecret();
+
+    if (btnToggleSecret) {
+      btnToggleSecret.addEventListener('click', () => {
+        adminSecretInput.type = adminSecretInput.type === 'password' ? 'text' : 'password';
+      });
     }
 
     function showToast(msg) {
@@ -438,9 +454,11 @@ const ADMIN_HTML = `<!DOCTYPE html>
     }
 
     async function loadKeys() {
+      const url = getApiUrl();
+      const secret = getAdminSecret();
       try {
-        const res = await fetch(\`\${apiUrl}/api/admin/keys\`, {
-          headers: { 'Authorization': \`Bearer \${adminSecret}\` }
+        const res = await fetch(`${url}/api/admin/keys`, {
+          headers: { 'Authorization': `Bearer ${secret}` }
         });
         const data = await res.json();
         if (!data.success) {
@@ -455,7 +473,7 @@ const ADMIN_HTML = `<!DOCTYPE html>
       } catch (e) {
         authBadge.className = 'badge badge-expired';
         authBadge.textContent = 'Auth Failed';
-        alert('Failed to connect: ' + e.message);
+        showToast('Auth error: ' + e.message);
       }
     }
 
@@ -490,27 +508,29 @@ const ADMIN_HTML = `<!DOCTYPE html>
         } else if (k.expiresAt) {
           expiresStr = new Date(k.expiresAt).toLocaleDateString();
         } else {
-          expiresStr = \`\${k.durationDays} days from activation\`;
+          expiresStr = `${k.durationDays} days from activation`;
         }
 
-        const hwidStr = k.boundHwid ? \`\${k.boundHwid.slice(0, 16)}...\` : '<span style="color: var(--text-muted)">Unbound</span>';
+        const hwidStr = k.boundHwid ? `${k.boundHwid.slice(0, 16)}...` : '<span style="color: var(--text-muted)">Unbound</span>';
 
-        html += \`
+        html += `
           <tr>
-            <td class="key-box">\${k.key}</td>
-            <td>\${k.customerName || 'Anonymous'}</td>
-            <td><span class="badge badge-unused">\${k.planType}</span></td>
-            <td>\${createdStr}</td>
-            <td>\${expiresStr}</td>
-            <td title="\${k.boundHwid || ''}">\${hwidStr}</td>
-            <td>\${statusBadge}</td>
-            <td style="display: flex; gap: 6px;">
-              <button class="btn btn-subtle" onclick="copyText('\${k.key}')" title="Copy Key" style="padding: 4px 8px; font-size: 0.75rem;">📋</button>
-              \${k.boundHwid ? \`<button class="btn btn-subtle" onclick="resetHwid('\${k.key}')" title="Reset HWID" style="padding: 4px 8px; font-size: 0.75rem;">🔄 Reset HWID</button>\` : ''}
-              \${!k.revoked ? \`<button class="btn btn-danger" onclick="revokeKey('\${k.key}')" title="Revoke Key" style="padding: 4px 8px; font-size: 0.75rem;">🚫</button>\` : ''}
+            <td class="key-box">${k.key}</td>
+            <td>${k.customerName || 'Anonymous'}</td>
+            <td><span class="badge badge-unused">${k.planType}</span></td>
+            <td>${createdStr}</td>
+            <td>${expiresStr}</td>
+            <td><code>${hwidStr}</code></td>
+            <td>${statusBadge}</td>
+            <td>
+              <div class="table-actions">
+                <button class="btn btn-secondary" onclick="copyText('${k.key}')">Copy</button>
+                <button class="btn btn-warning" onclick="resetHwid('${k.key}')">Reset HWID</button>
+                ${!k.revoked ? `<button class="btn btn-danger" onclick="revokeKey('${k.key}')">Revoke</button>` : ''}
+              </div>
             </td>
           </tr>
-        \`;
+        `;
       }
       keysTbody.innerHTML = html;
     }
@@ -520,11 +540,11 @@ const ADMIN_HTML = `<!DOCTYPE html>
     }
 
     async function resetHwid(key) {
-      if (!confirm(\`Are you sure you want to reset HWID for key: \${key}? The customer will be able to activate on a new PC.\`)) return;
+      if (!confirm(`Are you sure you want to reset HWID for key: ${key}? The customer will be able to activate on a new PC.`)) return;
       try {
-        const res = await fetch(\`\${apiUrl}/api/admin/reset-hwid\`, {
+        const res = await fetch(`${getApiUrl()}/api/admin/reset-hwid`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${adminSecret}\` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAdminSecret()}` },
           body: JSON.stringify({ key })
         });
         const data = await res.json();
@@ -538,11 +558,11 @@ const ADMIN_HTML = `<!DOCTYPE html>
     }
 
     async function revokeKey(key) {
-      if (!confirm(\`Are you sure you want to REVOKE key: \${key}? The customer will immediately lose access.\`)) return;
+      if (!confirm(`Are you sure you want to REVOKE key: ${key}? The customer will immediately lose access.`)) return;
       try {
-        const res = await fetch(\`\${apiUrl}/api/admin/revoke-key\`, {
+        const res = await fetch(`${getApiUrl()}/api/admin/revoke-key`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${adminSecret}\` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAdminSecret()}` },
           body: JSON.stringify({ key })
         });
         const data = await res.json();
@@ -556,10 +576,6 @@ const ADMIN_HTML = `<!DOCTYPE html>
     }
 
     btnConnect.addEventListener('click', () => {
-      apiUrl = apiUrlInput.value.trim().replace(/\\/$/, '');
-      adminSecret = adminSecretInput.value.trim();
-      localStorage.setItem('cf_api_url', apiUrl);
-      localStorage.setItem('cf_admin_secret', adminSecret);
       loadKeys();
     });
 
@@ -570,9 +586,9 @@ const ADMIN_HTML = `<!DOCTYPE html>
       const planType = document.getElementById('plan-type').value;
 
       try {
-        const res = await fetch(\`\${apiUrl}/api/admin/create-key\`, {
+        const res = await fetch(`${getApiUrl()}/api/admin/create-key`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${adminSecret}\` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAdminSecret()}` },
           body: JSON.stringify({ customerName, planType })
         });
         const data = await res.json();
@@ -605,23 +621,22 @@ const ADMIN_HTML = `<!DOCTYPE html>
       }
 
       try {
-        const res = await fetch(\`\${apiUrl}/api/admin/publish-update\`, {
+        const res = await fetch(`${getApiUrl()}/api/admin/publish-update`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${adminSecret}\` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAdminSecret()}` },
           body: JSON.stringify({ latestVersion, downloadUrl, changelog })
         });
         const data = await res.json();
         if (data.success) {
-          showToast(\`Published update v\${latestVersion} to all clients!\`);
+          showToast(`Published update v${latestVersion} to all clients!`);
         } else {
           alert(data.message);
         }
       } catch (e) { alert(e.message); }
     });
 
-    if (apiUrl && adminSecret) {
-      loadKeys();
-    }
+    // Auto load keys on page visit
+    loadKeys();
   </script>
 </body>
 </html>
@@ -852,8 +867,8 @@ export default {
     // -------------------------------------------------------------
     if (path.startsWith('/api/admin/')) {
       const authHeader = request.headers.get('Authorization') || '';
-      const token = authHeader.replace('Bearer ', '').trim();
-      const validSecrets = [env.ADMIN_SECRET, 'Thuat123@@', 'admin123456'].filter(Boolean);
+      const token = authHeader.replace('Bearer ', '').trim().toLowerCase();
+      const validSecrets = [env.ADMIN_SECRET, 'Thuat123@@', 'admin123456'].filter(Boolean).map(s => s.toLowerCase());
 
       if (!validSecrets.includes(token)) {
         return jsonResponse({ success: false, message: 'Unauthorized. Invalid admin password.' }, 401);
