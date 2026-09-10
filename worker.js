@@ -764,6 +764,14 @@ export default {
           serverTime: now,
         };
 
+        if (!env.RSA_PRIVATE_KEY) {
+          return jsonResponse({
+            success: false,
+            code: 'RSA_KEY_MISSING',
+            message: 'RSA_PRIVATE_KEY is not configured in Cloudflare Dashboard. Please add it in Settings -> Variables and secrets as a Secret.',
+          }, 500);
+        }
+
         const payloadString = JSON.stringify(payloadObj);
         const signature = await signPayload(env.RSA_PRIVATE_KEY, payloadString);
 
